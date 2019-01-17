@@ -1,0 +1,101 @@
+---
+title: "Practical Machine Learning Activity Course Project"
+author: "RS"
+date: "January 8, 2019"
+output: html_document
+
+Project Background:
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://web.archive.org/web/20161224072740/http:/groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset).
+
+Goal of project:  To predict the manner in which they did the exercise. This is the "classe" variable in the training set. Use any of the other variables to predict with. Create a report describing how you built your model, how you used cross validation, what you think the expected out of sample error is, and why you made the choices you did. You will also use your prediction model to predict 20 different test cases.
+---
+Loading libraries
+```{r}
+library(caret)
+library(ggplot2)
+library(rpart)
+library(rpart.plot)
+library(RColorBrewer)
+library(rattle)
+library(randomForest)
+library(gbm)
+
+```
+Loading data
+```{r}
+trainingdata <- read.csv("./pml-training.csv")
+testingdata <- read.csv("./pml-testing.csv")
+dim(trainingdata)
+dim(testingdata)
+```
+Cleaning data - Removing NAs
+```{r}
+train<- trainingdata[, colSums(is.na(trainingdata)) == 0]
+test<- testingdata[, colSums(is.na(testingdata)) == 0]
+dim(train)
+dim(test)
+traindata1<- train[, -c(1:7)]
+testdata1<- test[, -c(1:7)]
+```
+Preparing data for prediction
+```{r}
+set.seed(4321)
+inTrain <- createDataPartition(traindata1$classe, p=0.7, list=FALSE)
+training <- traindata1[inTrain, ]
+testing <- traindata1[-inTrain, ]
+dim(training)
+```
+Cleaning data further
+```{r}
+NZV <- nearZeroVar(training)
+traindata <- training[, -NZV]
+testdata <- testing[, -NZV]
+dim(traindata)
+dim(testdata)
+```
+Building Prediction models
+Prediction with decision trees
+```{r}
+set.seed(4321)
+dtmod1 <- rpart(classe~., data=traindata, method="class")
+fancyRpartPlot(dtmod1)
+predictdtmod1 <- predict(dtmod1, testdata, type="class")
+cm <- confusionMatrix(predictdtmod1, testdata$classe)
+cm
+```
+plot matrix results
+```{r}
+plot(cm$table, col = cm$byClass, 
+     main = paste("Decision Tree - Accuracy =", round(cm$overall['Accuracy'], 4)))
+```
+Prediction with Random Forest
+```{r}
+controlRF <- trainControl(method="cv", number=3, verboseIter=FALSE)
+modRF1 <- train(classe ~ ., data=traindata, method="rf", trControl=controlRF)
+modRF1$finalModel
+predictRF1 <- predict(modRF1, newdata=testdata)
+cmrf <- confusionMatrix(predictRF1, testdata$classe)
+cmrf
+plot(modRF1)
+plot(cmrf$table, col = cmrf$byClass, main = paste("Random Forest Confusion Matrix: Accuracy =", round(cmrf$overall['Accuracy'], 4)))
+```
+Prediction with Gradient Boosting model
+```{r}
+set.seed(4321)
+controlGBM <- trainControl(method = "repeatedcv", number = 5, repeats = 1)
+modGBM  <- train(classe ~ ., data=traindata, method = "gbm", trControl = controlGBM, verbose = FALSE)
+modGBM$finalModel
+print(modGBM)
+```
+Validate Gradient boosting model
+```{r}
+predictGBM <- predict(modGBM, newdata=testdata)
+cmGBM <- confusionMatrix(predictGBM, testdata$classe)
+cmGBM
+```
+Randomforest model gave an accuracy of 99.2% which was more accurate than Desicion trees and Gradient boost model.Hence Randomforest model used to validate testdata.
+```{r}
+Results <- predict(modRF1, newdata=testdata1)
+Results
+```
+
